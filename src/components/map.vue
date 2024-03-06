@@ -1,4 +1,14 @@
 <template>
+  <div class="history">
+    <span class="historyItem" @click="historyClick()">全国</span>
+    <span class="historyItem" v-if="data.codeList[1]" @click="historyClick(data.codeList[1])"> >
+      {{ data.codeNameList[0] }}
+    </span>
+    <span class="historyItem" v-if="data.codeList.length > 2"
+      @click="historyClick(data.codeList[data.codeList.length - 1])"> >
+      {{ data.codeNameList[data.codeNameList.length - 1] }}
+    </span>
+  </div>
   <div id="map"></div>
 </template>
 
@@ -12,11 +22,23 @@ import {
 import { reactive, onMounted } from "vue";
 import * as d3 from "d3";
 const data: any = reactive({
-  code: 100000
+  code: 100000,
+  codeList: [],
+  codeNameList: []
 })
 
 const offsetXY = d3.geoMercator();
 
+const historyClick = (code?: number) => {
+  if (code) {
+    const idx = data.codeList.findIndex(item => code === item)
+    data.codeList = data.codeList.slice(0, idx)
+    const url = `https://geo.datav.aliyun.com/areas_v3/bound/${code}_full.json`
+    init(url)
+  } else {
+    window.location.reload()
+  }
+}
 const createMap = (data: { features: any[]; }, count: number) => {
   const map = new THREE.Object3D();
   const center = data.features[0].properties.centroid;
@@ -115,7 +137,7 @@ const setCenter = (map: any) => {
   map.position.x = map.position.x - center.x - offset[0];
   map.position.z = map.position.z - center.z - offset[1];
 };
-const init = (url: string) => {
+const init = (url: string, name?: string) => {
   const mapContainer: any = document.getElementById("map");
   mapContainer.replaceChildren();
 
@@ -123,6 +145,12 @@ const init = (url: string) => {
   const match: any = url.match(regex);
   const count = match ? match[1].split("0").length : 0
   data.code = match[1]
+  if (!data.codeList.includes(data.code)) {
+    data.codeList.push(data.code)
+  }
+  if (name) {
+    data.codeNameList.push(name)
+  }
 
   const scene = new THREE.Scene();
 
@@ -197,11 +225,12 @@ const init = (url: string) => {
       }
       window.addEventListener("dblclick", (event) => {
         const intersects: any = mouseFilter(event)
-        if (intersects[0].object.type !== "Sprite") {
+        if (intersects[0]?.object?.type !== "Sprite") {
           const item = params.features.find((item: { properties: { name: any; }; }) => intersects[0]?.object.parent.name === item.properties.name)
+          const name = item?.properties?.name
           const code = count > 4 ? item?.properties.adcode : +match[1]
           const url = `https://geo.datav.aliyun.com/areas_v3/bound/${code}_full.json`
-          init(url)
+          init(url, name)
         }
       });
       window.addEventListener("pointerdown", (event) => {
@@ -235,5 +264,19 @@ onMounted(() => {
 <style>
 #map {
   background-color: #d4e7fd;
+}
+
+.history {
+  position: fixed;
+  top: 50px;
+  left: 50px;
+  color: #fff;
+  font-weight: bolder;
+  font-size: 20px;
+  z-index: 1;
+}
+
+.historyItem {
+  cursor: pointer;
 }
 </style>
