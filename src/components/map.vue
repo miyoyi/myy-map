@@ -1,6 +1,7 @@
 <template>
   <div class="history">
-    <span class="historyItem" @click="historyClick()">全国</span>
+    <span class="historyItem" @click="toWorld()">地球</span>
+    <span class="historyItem" @click="historyClick()"> > 中华人民共和国</span>
     <span class="historyItem" v-if="data.codeList[1]" @click="historyClick(data.codeList[1])"> >
       {{ data.codeNameList[0] }}
     </span>
@@ -20,7 +21,11 @@ import {
   CSS2DObject,
 } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import { reactive, onMounted } from "vue";
+import { useRouter } from 'vue-router';
 import * as d3 from "d3";
+
+const router = useRouter();
+
 const data: any = reactive({
   code: 100000,
   codeList: [],
@@ -28,6 +33,10 @@ const data: any = reactive({
 })
 
 const offsetXY = d3.geoMercator();
+
+const toWorld = () => {
+  router.replace({ name: 'world' });
+}
 
 const historyClick = (code?: number) => {
   if (code) {
@@ -144,7 +153,7 @@ const init = (url: string, name?: string) => {
   const regex = /\/(\d+)_full\.json$/;
   const match: any = url.match(regex);
   const count = match ? match[1].split("0").length : 0
-  data.code = match[1]
+  data.code = match ? match[1] : 100000
   if (!data.codeList.includes(data.code)) {
     data.codeList.push(data.code)
   }
@@ -230,7 +239,9 @@ const init = (url: string, name?: string) => {
           const name = item?.properties?.name
           const code = count > 4 ? item?.properties.adcode : +match[1]
           const url = `https://geo.datav.aliyun.com/areas_v3/bound/${code}_full.json`
-          init(url, name)
+          if (code) {
+            init(url, name)
+          }
         }
       });
       window.addEventListener("pointerdown", (event) => {
@@ -273,7 +284,7 @@ onMounted(() => {
   color: #fff;
   font-weight: bolder;
   font-size: 20px;
-  z-index: 1;
+  z-index: 9999;
 }
 
 .historyItem {
