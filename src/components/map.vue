@@ -50,7 +50,7 @@ const createMap = (data: { features: any[]; }, count: number) => {
     const point = centroid || center || [0, 0];
 
     const color = new THREE.Color(`hsl(
-      ${233},
+      ${365},
       ${Math.random() * 30 + 55}%,
       ${Math.random() * 30 + 55}%)`).getHex();
     const depth = count * Math.random() * 0.3;
@@ -263,7 +263,7 @@ onMounted(() => {
 
 <style>
 #map {
-  background-color: #d4e7fd;
+  background-color: #040D21;
 }
 
 .history {
