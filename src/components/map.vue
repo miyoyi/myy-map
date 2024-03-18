@@ -40,7 +40,7 @@ const toWorld = () => {
 
 const historyClick = (code?: number) => {
   if (code) {
-    const idx = data.codeList.findIndex(item => code === item)
+    const idx = data.codeList.findIndex((item: number) => code === item)
     data.codeList = data.codeList.slice(0, idx)
     const url = `https://geo.datav.aliyun.com/areas_v3/bound/${code}_full.json`
     init(url)
