@@ -29,7 +29,9 @@ const router = useRouter();
 const data: any = reactive({
   code: 100000,
   codeList: [],
-  codeNameList: []
+  codeNameList: [],
+  moveSpots: [],
+  flyLine: [[[116.4074, 39.9042], [119.296494, 26.074507]]]
 })
 
 const offsetXY = d3.geoMercator();
@@ -48,39 +50,17 @@ const historyClick = (code?: number) => {
     window.location.reload()
   }
 }
-const createMap = (data: { features: any[]; }, count: number) => {
-  const map = new THREE.Object3D();
-  const center = data.features[0].properties.centroid;
-  offsetXY.center(center).translate([0, 0]);
-  data.features.forEach((feature: { properties: { centroid: any; center: any; name: any; }; geometry: { coordinates: any; type: any; }; }) => {
-    const unit = new THREE.Object3D();
-    const { centroid, center, name } = feature.properties;
-    const { coordinates, type } = feature.geometry;
-    const point = centroid || center || [0, 0];
-
-    const color = new THREE.Color(`hsl(
-      ${365},
-      ${Math.random() * 30 + 55}%,
-      ${Math.random() * 30 + 55}%)`).getHex();
-    const depth = count * Math.random() * 0.3;
-
-    const label = createLabel(name, point, depth);
-
-    coordinates.forEach((coordinate: any[]) => {
-      const createGeo = (coordinate: any) => {
-        unit.name = name;
-        const mesh = createMesh(coordinate, color, depth);
-        const line = createLine(coordinate, depth);
-        unit.add(mesh, ...line);
-      }
-      if (type === "MultiPolygon") coordinate.forEach((item: any) => createGeo(item));
-      if (type === "Polygon") createGeo(coordinate);
-
-    });
-    map.add(unit, label);
-    setCenter(map);
-  });
-  return map;
+const createLabel = (name: string | null, point: any, depth: number) => {
+  const div = document.createElement("div");
+  div.style.color = "#fff";
+  div.style.fontSize = "12px";
+  div.style.textShadow = "1px 1px 2px #047cd6";
+  div.textContent = name;
+  const label: any = new CSS2DObject(div);
+  label.scale.set(0.01, 0.01, 0.01);
+  const [x, y]: any = offsetXY(point);
+  label.position.set(x, -y, depth);
+  return label;
 };
 const createMesh = (data: any[], color: number, depth: number) => {
   const shape = new THREE.Shape();
@@ -109,7 +89,7 @@ const createMesh = (data: any[], color: number, depth: number) => {
 
   return mesh;
 };
-const createLine = (data: any[], depth: number) => {
+const createOutline = (data: any[], depth: number) => {
   const points: any = [];
   data.forEach((item: any) => {
     const [x, y]: any = offsetXY(item);
@@ -125,18 +105,43 @@ const createLine = (data: any[], depth: number) => {
   upLine.position.z = depth + 0.0001;
   return [upLine, downLine];
 };
-const createLabel = (name: string | null, point: any, depth: number) => {
-  const div = document.createElement("div");
-  div.style.color = "#fff";
-  div.style.fontSize = "12px";
-  div.style.textShadow = "1px 1px 2px #047cd6";
-  div.textContent = name;
-  const label: any = new CSS2DObject(div);
-  label.scale.set(0.01, 0.01, 0.01);
-  const [x, y]: any = offsetXY(point);
-  label.position.set(x, -y, depth);
-  return label;
-};
+const lineConnect = (posStart: any, posEnd: any, depth: number) => {
+  const z = depth / 5
+  const [x0, y0] = offsetXY(posStart)
+  const [x1, y1] = offsetXY(posEnd)
+
+  // 使用QuadraticBezierCurve3() 创建 三维二次贝塞尔曲线
+  const curve = new THREE.QuadraticBezierCurve3(
+    new THREE.Vector3(x0, -y0, z),
+    new THREE.Vector3((x0 + x1) / 2, -(y0 + y1) / 2, 25),
+    new THREE.Vector3(x1, -y1, z)
+  )
+  // 动点
+  const aGeo = new THREE.SphereGeometry(0.3, 0.3, 0.3)
+  const aMater = new THREE.MeshPhongMaterial({ color: 0xf6769d, side: THREE.DoubleSide })
+  const aMesh = new THREE.Mesh(aGeo, aMater) as any
+  aMesh.curve = curve
+  aMesh._s = 0
+  data.moveSpots.push(aMesh)
+
+  const lineGeometry = new THREE.BufferGeometry()
+  var points = curve.getPoints(50)
+  var positions: any = []
+  var colors: any = []
+  var color = new THREE.Color()
+  for (var j = 0; j < points.length; j++) {
+    color.setHSL(0.95 + j, 0.88, 0.715 + j * 0.0025)
+    colors.push(color.r, color.g, color.b)
+    positions.push(points[j].x, points[j].y, points[j].z)
+  }
+  lineGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3, true));
+  lineGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colors), 3, true));
+
+  const material = new THREE.LineBasicMaterial({ vertexColors: true, side: THREE.DoubleSide })
+  const line = new THREE.Line(lineGeometry, material)
+
+  return {line, aMesh}
+}
 const setCenter = (map: any) => {
   map.rotation.x = -Math.PI / 2;
   const box = new THREE.Box3().setFromObject(map);
@@ -145,6 +150,43 @@ const setCenter = (map: any) => {
   const offset = [0, 0];
   map.position.x = map.position.x - center.x - offset[0];
   map.position.z = map.position.z - center.z - offset[1];
+};
+const createMap = (allMap: { features: any[]; }, count: number) => {
+  const map = new THREE.Object3D();
+  const center = allMap.features[0].properties.centroid;
+  offsetXY.center(center).translate([0, 0]);
+  allMap.features.forEach((feature: { properties: { centroid: any; center: any; name: any; }; geometry: { coordinates: any; type: any; }; }) => {
+    const unit = new THREE.Object3D();
+    const { centroid, center, name } = feature.properties;
+    const { coordinates, type } = feature.geometry;
+    const point = centroid || center || [0, 0];
+
+    const color = new THREE.Color(`hsl(
+      ${365},
+      ${Math.random() * 30 + 55}%,
+      ${Math.random() * 30 + 55}%)`).getHex();
+    const depth = count * Math.random() * 0.3;
+
+    const label = createLabel(name, point, depth);
+    data.flyLine.forEach((item: any[]) => {
+        const flyLine = lineConnect(item[0], item[1], depth)
+        map.add(flyLine.line, flyLine.aMesh)
+    })
+
+    coordinates.forEach((coordinate: any[]) => {
+      const createGeo = (coordinate: any) => {
+        unit.name = name;
+        const mesh = createMesh(coordinate, color, depth);
+        const outline = createOutline(coordinate, depth);
+        unit.add(mesh, ...outline);
+      }
+      if (type === "MultiPolygon") coordinate.forEach((item: any) => createGeo(item));
+      if (type === "Polygon") createGeo(coordinate);
+    });
+    map.add(unit, label);
+    setCenter(map);
+  });
+  return map;
 };
 const init = (url: string, name?: string) => {
   const mapContainer: any = document.getElementById("map");
@@ -205,6 +247,12 @@ const init = (url: string, name?: string) => {
     controls.update();
     renderer.render(scene, camera);
     labelRenderer.render(scene, camera);
+    data.moveSpots.forEach(function (mesh: any) {
+      mesh._s += 0.005
+      let position = new THREE.Vector3()
+      position = mesh.curve.getPointAt(mesh._s % 1)
+      mesh.position.set(position.x, position.y, position.z)
+    })
   };
   animate();
   window.addEventListener("resize", () => {
